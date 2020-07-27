@@ -15,8 +15,7 @@
                     "port": "Port",
                     "username": "Nom d'utilisateur"
                 },
-                "description": "Veuillez entrer les informations de connexion de votre broker MQTT.",
-                "title": "MQTT"
+                "description": "Veuillez entrer les informations de connexion de votre broker MQTT."
             },
             "hassio_confirm": {
                 "data": {
@@ -47,6 +46,28 @@
             "button_short_press": "\" {subtype} \" press\u00e9",
             "button_short_release": "\"{subtype}\" relach\u00e9",
             "button_triple_press": "\"{subtype}\" triple-cliqu\u00e9"
+        }
+    },
+    "options": {
+        "error": {
+            "cannot_connect": "Impossible de se connecter au broker."
+        },
+        "step": {
+            "broker": {
+                "data": {
+                    "broker": "Broker",
+                    "password": "Mot de passe",
+                    "port": "Port",
+                    "username": "Username"
+                },
+                "description": "Veuillez entrer les informations de connexion de votre broker MQTT."
+            },
+            "options": {
+                "data": {
+                    "discovery": "Activer la d\u00e9couverte"
+                },
+                "description": "Veuillez s\u00e9lectionner les options MQTT."
+            }
         }
     }
 }

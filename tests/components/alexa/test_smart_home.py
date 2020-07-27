@@ -55,19 +55,19 @@ def events(hass):
 
 
 @pytest.fixture
-def mock_camera(hass):
+async def mock_camera(hass):
     """Initialize a demo camera platform."""
-    assert hass.loop.run_until_complete(
-        async_setup_component(hass, "camera", {camera.DOMAIN: {"platform": "demo"}})
+    assert await async_setup_component(
+        hass, "camera", {camera.DOMAIN: {"platform": "demo"}}
     )
+    await hass.async_block_till_done()
 
 
 @pytest.fixture
-def mock_stream(hass):
+async def mock_stream(hass):
     """Initialize a demo camera platform with streaming."""
-    assert hass.loop.run_until_complete(
-        async_setup_component(hass, "stream", {"stream": {}})
-    )
+    assert await async_setup_component(hass, "stream", {"stream": {}})
+    await hass.async_block_till_done()
 
 
 def test_create_api_message_defaults(hass):
@@ -310,29 +310,10 @@ async def test_script(hass):
         appliance, "Alexa.SceneController", "Alexa"
     )
     scene_capability = get_capability(capabilities, "Alexa.SceneController")
-    assert not scene_capability["supportsDeactivation"]
-
-    await assert_scene_controller_works("script#test", "script.turn_on", None, hass)
-
-
-async def test_cancelable_script(hass):
-    """Test cancalable script discovery."""
-    device = (
-        "script.test_2",
-        "off",
-        {"friendly_name": "Test script 2", "can_cancel": True},
-    )
-    appliance = await discovery_test(device, hass)
-
-    assert appliance["endpointId"] == "script#test_2"
-    capabilities = assert_endpoint_capabilities(
-        appliance, "Alexa.SceneController", "Alexa"
-    )
-    scene_capability = get_capability(capabilities, "Alexa.SceneController")
     assert scene_capability["supportsDeactivation"]
 
     await assert_scene_controller_works(
-        "script#test_2", "script.turn_on", "script.turn_off", hass
+        "script#test", "script.turn_on", "script.turn_off", hass
     )
 
 
@@ -3297,8 +3278,8 @@ async def test_media_player_eq_modes(hass):
         assert call.data["sound_mode"] == mode.lower()
 
 
-async def test_media_player_sound_mode_list_none(hass):
-    """Test EqualizerController bands directive not supported."""
+async def test_media_player_sound_mode_list_unsupported(hass):
+    """Test EqualizerController with unsupported sound modes."""
     device = (
         "media_player.test",
         "on",
@@ -3306,12 +3287,17 @@ async def test_media_player_sound_mode_list_none(hass):
             "friendly_name": "Test media player",
             "supported_features": SUPPORT_SELECT_SOUND_MODE,
             "sound_mode": "unknown",
-            "sound_mode_list": None,
+            "sound_mode_list": ["unsupported", "non-existing"],
         },
     )
     appliance = await discovery_test(device, hass)
     assert appliance["endpointId"] == "media_player#test"
     assert appliance["friendlyName"] == "Test media player"
+
+    # Test equalizer controller is not there
+    assert_endpoint_capabilities(
+        appliance, "Alexa", "Alexa.PowerController", "Alexa.EndpointHealth",
+    )
 
 
 async def test_media_player_eq_bands_not_supported(hass):

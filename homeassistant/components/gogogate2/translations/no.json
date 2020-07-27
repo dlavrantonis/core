@@ -3,9 +3,11 @@
         "step": {
             "user": {
                 "data": {
-                    "ip_address": "IP adresse"
+                    "ip_address": "IP adresse",
+                    "password": "Passord",
+                    "username": "Brukernavn"
                 },
-                "description": "Oppgi n\u00f8dvendig informasjon nedenfor.",
+                "description": "Gi n\u00f8dvendig informasjon nedenfor. Merk: bare \"admin\" brukeren er kjent for \u00e5 fungere.",
                 "title": "Konfigurer GogoGate2"
             }
         }

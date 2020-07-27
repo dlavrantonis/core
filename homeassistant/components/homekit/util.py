@@ -11,7 +11,7 @@ import socket
 import pyqrcode
 import voluptuous as vol
 
-from homeassistant.components import fan, media_player, sensor
+from homeassistant.components import binary_sensor, fan, media_player, sensor
 from homeassistant.const import (
     ATTR_CODE,
     ATTR_SUPPORTED_FEATURES,
@@ -32,7 +32,10 @@ from .const import (
     CONF_AUDIO_PACKET_SIZE,
     CONF_FEATURE,
     CONF_FEATURE_LIST,
+    CONF_LINKED_BATTERY_CHARGING_SENSOR,
     CONF_LINKED_BATTERY_SENSOR,
+    CONF_LINKED_HUMIDITY_SENSOR,
+    CONF_LINKED_MOTION_SENSOR,
     CONF_LOW_BATTERY_THRESHOLD,
     CONF_MAX_FPS,
     CONF_MAX_HEIGHT,
@@ -83,6 +86,9 @@ BASIC_INFO_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_NAME): cv.string,
         vol.Optional(CONF_LINKED_BATTERY_SENSOR): cv.entity_domain(sensor.DOMAIN),
+        vol.Optional(CONF_LINKED_BATTERY_CHARGING_SENSOR): cv.entity_domain(
+            binary_sensor.DOMAIN
+        ),
         vol.Optional(
             CONF_LOW_BATTERY_THRESHOLD, default=DEFAULT_LOW_BATTERY_THRESHOLD
         ): cv.positive_int,
@@ -115,7 +121,12 @@ CAMERA_SCHEMA = BASIC_INFO_SCHEMA.extend(
         vol.Optional(
             CONF_VIDEO_PACKET_SIZE, default=DEFAULT_VIDEO_PACKET_SIZE
         ): cv.positive_int,
+        vol.Optional(CONF_LINKED_MOTION_SENSOR): cv.entity_domain(binary_sensor.DOMAIN),
     }
+)
+
+HUMIDIFIER_SCHEMA = BASIC_INFO_SCHEMA.extend(
+    {vol.Optional(CONF_LINKED_HUMIDITY_SENSOR): cv.entity_domain(sensor.DOMAIN)}
 )
 
 CODE_SCHEMA = BASIC_INFO_SCHEMA.extend(
@@ -224,6 +235,9 @@ def validate_entity_config(values):
         elif domain == "switch":
             config = SWITCH_TYPE_SCHEMA(config)
 
+        elif domain == "humidifier":
+            config = HUMIDIFIER_SCHEMA(config)
+
         else:
             config = BASIC_INFO_SCHEMA(config)
 
@@ -292,7 +306,7 @@ class HomeKitSpeedMapping:
             _LOGGER.warning(
                 "%s does not contain the speed setting "
                 "%s as its first element. "
-                "Assuming that %s is equivalent to 'off'.",
+                "Assuming that %s is equivalent to 'off'",
                 speed_list,
                 fan.SPEED_OFF,
                 speed_list[0],
