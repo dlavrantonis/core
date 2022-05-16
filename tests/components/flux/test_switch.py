@@ -1,4 +1,7 @@
 """The tests for the Flux switch platform."""
+from unittest.mock import patch
+
+from freezegun import freeze_time
 import pytest
 
 from homeassistant.components import light, switch
@@ -13,14 +16,18 @@ from homeassistant.core import State
 from homeassistant.setup import async_setup_component
 import homeassistant.util.dt as dt_util
 
-from tests.async_mock import patch
 from tests.common import (
     assert_setup_component,
     async_fire_time_changed,
     async_mock_service,
     mock_restore_cache,
 )
-from tests.components.switch import common
+
+
+@pytest.fixture(autouse=True)
+def set_utc(hass):
+    """Set timezone to UTC."""
+    hass.config.set_time_zone("UTC")
 
 
 async def test_valid_config(hass):
@@ -104,6 +111,7 @@ async def test_valid_config_with_info(hass):
             }
         },
     )
+    await hass.async_block_till_done()
 
 
 async def test_valid_config_no_name(hass):
@@ -114,6 +122,7 @@ async def test_valid_config_no_name(hass):
             "switch",
             {"switch": {"platform": "flux", "lights": ["light.desk", "light.lamp"]}},
         )
+        await hass.async_block_till_done()
 
 
 async def test_invalid_config_no_lights(hass):
@@ -122,9 +131,10 @@ async def test_invalid_config_no_lights(hass):
         assert await async_setup_component(
             hass, "switch", {"switch": {"platform": "flux", "name": "flux"}}
         )
+        await hass.async_block_till_done()
 
 
-async def test_flux_when_switch_is_off(hass, legacy_patchable_time):
+async def test_flux_when_switch_is_off(hass, enable_custom_integrations):
     """Test the flux switch when it is off."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -137,7 +147,7 @@ async def test_flux_when_switch_is_off(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -150,9 +160,7 @@ async def test_flux_when_switch_is_off(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -168,13 +176,14 @@ async def test_flux_when_switch_is_off(hass, legacy_patchable_time):
                 }
             },
         )
+        await hass.async_block_till_done()
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
 
     assert not turn_on_calls
 
 
-async def test_flux_before_sunrise(hass, legacy_patchable_time):
+async def test_flux_before_sunrise(hass, enable_custom_integrations):
     """Test the flux switch before sunrise."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -187,7 +196,7 @@ async def test_flux_before_sunrise(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -201,9 +210,7 @@ async def test_flux_before_sunrise(hass, legacy_patchable_time):
         return sunset_time
 
     await hass.async_block_till_done()
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -218,9 +225,14 @@ async def test_flux_before_sunrise(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        await common.async_turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -228,7 +240,7 @@ async def test_flux_before_sunrise(hass, legacy_patchable_time):
     assert call.data[light.ATTR_XY_COLOR] == [0.606, 0.379]
 
 
-async def test_flux_before_sunrise_known_location(hass, legacy_patchable_time):
+async def test_flux_before_sunrise_known_location(hass, enable_custom_integrations):
     """Test the flux switch before sunrise."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -241,7 +253,7 @@ async def test_flux_before_sunrise_known_location(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -253,9 +265,7 @@ async def test_flux_before_sunrise_known_location(hass, legacy_patchable_time):
     )
 
     await hass.async_block_till_done()
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ):
+    with freeze_time(test_time):
         assert await async_setup_component(
             hass,
             switch.DOMAIN,
@@ -271,9 +281,14 @@ async def test_flux_before_sunrise_known_location(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        await common.async_turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -282,7 +297,7 @@ async def test_flux_before_sunrise_known_location(hass, legacy_patchable_time):
 
 
 # pylint: disable=invalid-name
-async def test_flux_after_sunrise_before_sunset(hass, legacy_patchable_time):
+async def test_flux_after_sunrise_before_sunset(hass, enable_custom_integrations):
     """Test the flux switch after sunrise and before sunset."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -295,7 +310,7 @@ async def test_flux_after_sunrise_before_sunset(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -308,9 +323,7 @@ async def test_flux_after_sunrise_before_sunset(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -325,9 +338,14 @@ async def test_flux_after_sunrise_before_sunset(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        await common.async_turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -336,7 +354,7 @@ async def test_flux_after_sunrise_before_sunset(hass, legacy_patchable_time):
 
 
 # pylint: disable=invalid-name
-async def test_flux_after_sunset_before_stop(hass, legacy_patchable_time):
+async def test_flux_after_sunset_before_stop(hass, enable_custom_integrations):
     """Test the flux switch after sunset and before stop."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -349,7 +367,7 @@ async def test_flux_after_sunset_before_stop(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -362,9 +380,7 @@ async def test_flux_after_sunset_before_stop(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -380,9 +396,14 @@ async def test_flux_after_sunset_before_stop(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -391,7 +412,7 @@ async def test_flux_after_sunset_before_stop(hass, legacy_patchable_time):
 
 
 # pylint: disable=invalid-name
-async def test_flux_after_stop_before_sunrise(hass, legacy_patchable_time):
+async def test_flux_after_stop_before_sunrise(hass, enable_custom_integrations):
     """Test the flux switch after stop and before sunrise."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -404,7 +425,7 @@ async def test_flux_after_stop_before_sunrise(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -417,9 +438,7 @@ async def test_flux_after_stop_before_sunrise(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -434,9 +453,14 @@ async def test_flux_after_stop_before_sunrise(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -445,7 +469,7 @@ async def test_flux_after_stop_before_sunrise(hass, legacy_patchable_time):
 
 
 # pylint: disable=invalid-name
-async def test_flux_with_custom_start_stop_times(hass, legacy_patchable_time):
+async def test_flux_with_custom_start_stop_times(hass, enable_custom_integrations):
     """Test the flux with custom start and stop times."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -458,7 +482,7 @@ async def test_flux_with_custom_start_stop_times(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -471,9 +495,7 @@ async def test_flux_with_custom_start_stop_times(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -490,9 +512,14 @@ async def test_flux_with_custom_start_stop_times(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -500,7 +527,7 @@ async def test_flux_with_custom_start_stop_times(hass, legacy_patchable_time):
     assert call.data[light.ATTR_XY_COLOR] == [0.504, 0.385]
 
 
-async def test_flux_before_sunrise_stop_next_day(hass, legacy_patchable_time):
+async def test_flux_before_sunrise_stop_next_day(hass, enable_custom_integrations):
     """Test the flux switch before sunrise.
 
     This test has the stop_time on the next day (after midnight).
@@ -516,7 +543,7 @@ async def test_flux_before_sunrise_stop_next_day(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -529,9 +556,7 @@ async def test_flux_before_sunrise_stop_next_day(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -547,9 +572,14 @@ async def test_flux_before_sunrise_stop_next_day(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -559,7 +589,7 @@ async def test_flux_before_sunrise_stop_next_day(hass, legacy_patchable_time):
 
 # pylint: disable=invalid-name
 async def test_flux_after_sunrise_before_sunset_stop_next_day(
-    hass, legacy_patchable_time
+    hass, enable_custom_integrations
 ):
     """
     Test the flux switch after sunrise and before sunset.
@@ -577,7 +607,7 @@ async def test_flux_after_sunrise_before_sunset_stop_next_day(
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -590,9 +620,7 @@ async def test_flux_after_sunrise_before_sunset_stop_next_day(
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -608,9 +636,14 @@ async def test_flux_after_sunrise_before_sunset_stop_next_day(
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -621,7 +654,7 @@ async def test_flux_after_sunrise_before_sunset_stop_next_day(
 # pylint: disable=invalid-name
 @pytest.mark.parametrize("x", [0, 1])
 async def test_flux_after_sunset_before_midnight_stop_next_day(
-    hass, legacy_patchable_time, x
+    hass, x, enable_custom_integrations
 ):
     """Test the flux switch after sunset and before stop.
 
@@ -638,7 +671,7 @@ async def test_flux_after_sunset_before_midnight_stop_next_day(
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -651,9 +684,7 @@ async def test_flux_after_sunset_before_midnight_stop_next_day(
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -669,9 +700,14 @@ async def test_flux_after_sunset_before_midnight_stop_next_day(
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -681,7 +717,7 @@ async def test_flux_after_sunset_before_midnight_stop_next_day(
 
 # pylint: disable=invalid-name
 async def test_flux_after_sunset_after_midnight_stop_next_day(
-    hass, legacy_patchable_time
+    hass, enable_custom_integrations
 ):
     """Test the flux switch after sunset and before stop.
 
@@ -698,7 +734,7 @@ async def test_flux_after_sunset_after_midnight_stop_next_day(
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -711,9 +747,7 @@ async def test_flux_after_sunset_after_midnight_stop_next_day(
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -729,9 +763,14 @@ async def test_flux_after_sunset_after_midnight_stop_next_day(
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -741,7 +780,7 @@ async def test_flux_after_sunset_after_midnight_stop_next_day(
 
 # pylint: disable=invalid-name
 async def test_flux_after_stop_before_sunrise_stop_next_day(
-    hass, legacy_patchable_time
+    hass, enable_custom_integrations
 ):
     """Test the flux switch after stop and before sunrise.
 
@@ -758,7 +797,7 @@ async def test_flux_after_stop_before_sunrise_stop_next_day(
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -771,9 +810,7 @@ async def test_flux_after_stop_before_sunrise_stop_next_day(
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -789,9 +826,14 @@ async def test_flux_after_stop_before_sunrise_stop_next_day(
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -800,7 +842,7 @@ async def test_flux_after_stop_before_sunrise_stop_next_day(
 
 
 # pylint: disable=invalid-name
-async def test_flux_with_custom_colortemps(hass, legacy_patchable_time):
+async def test_flux_with_custom_colortemps(hass, enable_custom_integrations):
     """Test the flux with custom start and stop colortemps."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -813,7 +855,7 @@ async def test_flux_with_custom_colortemps(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -826,9 +868,7 @@ async def test_flux_with_custom_colortemps(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -846,9 +886,14 @@ async def test_flux_with_custom_colortemps(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -857,7 +902,7 @@ async def test_flux_with_custom_colortemps(hass, legacy_patchable_time):
 
 
 # pylint: disable=invalid-name
-async def test_flux_with_custom_brightness(hass, legacy_patchable_time):
+async def test_flux_with_custom_brightness(hass, enable_custom_integrations):
     """Test the flux with custom start and stop colortemps."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -870,7 +915,7 @@ async def test_flux_with_custom_brightness(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -883,9 +928,7 @@ async def test_flux_with_custom_brightness(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -902,9 +945,14 @@ async def test_flux_with_custom_brightness(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -912,7 +960,7 @@ async def test_flux_with_custom_brightness(hass, legacy_patchable_time):
     assert call.data[light.ATTR_XY_COLOR] == [0.506, 0.385]
 
 
-async def test_flux_with_multiple_lights(hass, legacy_patchable_time):
+async def test_flux_with_multiple_lights(hass, enable_custom_integrations):
     """Test the flux switch with multiple light entities."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -932,17 +980,17 @@ async def test_flux_with_multiple_lights(hass, legacy_patchable_time):
     await hass.async_block_till_done()
 
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
     state = hass.states.get(ent2.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
     state = hass.states.get(ent3.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("xy_color") is None
     assert state.attributes.get("brightness") is None
 
@@ -952,14 +1000,10 @@ async def test_flux_with_multiple_lights(hass, legacy_patchable_time):
 
     def event_date(hass, event, now=None):
         if event == SUN_EVENT_SUNRISE:
-            print(f"sunrise {sunrise_time}")
             return sunrise_time
-        print(f"sunset {sunset_time}")
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -974,9 +1018,14 @@ async def test_flux_with_multiple_lights(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
@@ -990,7 +1039,7 @@ async def test_flux_with_multiple_lights(hass, legacy_patchable_time):
     assert call.data[light.ATTR_XY_COLOR] == [0.46, 0.376]
 
 
-async def test_flux_with_mired(hass, legacy_patchable_time):
+async def test_flux_with_mired(hass, enable_custom_integrations):
     """Test the flux switch´s mode mired."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -1003,7 +1052,7 @@ async def test_flux_with_mired(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("color_temp") is None
 
     test_time = dt_util.utcnow().replace(hour=8, minute=30, second=0)
@@ -1015,9 +1064,7 @@ async def test_flux_with_mired(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -1033,16 +1080,21 @@ async def test_flux_with_mired(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        common.turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]
     assert call.data[light.ATTR_COLOR_TEMP] == 269
 
 
-async def test_flux_with_rgb(hass, legacy_patchable_time):
+async def test_flux_with_rgb(hass, enable_custom_integrations):
     """Test the flux switch´s mode rgb."""
     platform = getattr(hass.components, "test.light")
     platform.init()
@@ -1055,7 +1107,7 @@ async def test_flux_with_rgb(hass, legacy_patchable_time):
 
     # Verify initial state of light
     state = hass.states.get(ent1.entity_id)
-    assert STATE_ON == state.state
+    assert state.state == STATE_ON
     assert state.attributes.get("color_temp") is None
 
     test_time = dt_util.utcnow().replace(hour=8, minute=30, second=0)
@@ -1067,9 +1119,7 @@ async def test_flux_with_rgb(hass, legacy_patchable_time):
             return sunrise_time
         return sunset_time
 
-    with patch(
-        "homeassistant.components.flux.switch.dt_utcnow", return_value=test_time
-    ), patch(
+    with freeze_time(test_time), patch(
         "homeassistant.components.flux.switch.get_astral_event_date",
         side_effect=event_date,
     ):
@@ -1085,9 +1135,14 @@ async def test_flux_with_rgb(hass, legacy_patchable_time):
                 }
             },
         )
-        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
-        await common.async_turn_on(hass, "switch.flux")
         await hass.async_block_till_done()
+        turn_on_calls = async_mock_service(hass, light.DOMAIN, SERVICE_TURN_ON)
+        await hass.services.async_call(
+            switch.DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: "switch.flux"},
+            blocking=True,
+        )
         async_fire_time_changed(hass, test_time)
         await hass.async_block_till_done()
     call = turn_on_calls[-1]

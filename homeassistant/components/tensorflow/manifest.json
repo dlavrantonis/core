@@ -3,10 +3,13 @@
   "name": "TensorFlow",
   "documentation": "https://www.home-assistant.io/integrations/tensorflow",
   "requirements": [
-    "tensorflow==1.13.2",
-    "numpy==1.19.0",
-    "protobuf==3.6.1",
-    "pillow==7.1.2"
+    "tensorflow==2.5.0",
+    "tf-models-official==2.5.0",
+    "pycocotools==2.0.1",
+    "numpy==1.21.6",
+    "pillow==9.1.0"
   ],
-  "codeowners": []
+  "codeowners": [],
+  "iot_class": "local_polling",
+  "loggers": ["tensorflow"]
 }

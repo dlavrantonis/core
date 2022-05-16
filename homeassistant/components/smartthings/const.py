@@ -2,6 +2,8 @@
 from datetime import timedelta
 import re
 
+from homeassistant.const import Platform
+
 DOMAIN = "smartthings"
 
 APP_OAUTH_CLIENT_NAME = "Home Assistant"
@@ -24,21 +26,29 @@ SIGNAL_SMARTAPP_PREFIX = "smartthings_smartap_"
 
 SETTINGS_INSTANCE_ID = "hassInstanceId"
 
+SUBSCRIPTION_WARNING_LIMIT = 40
+
 STORAGE_KEY = DOMAIN
 STORAGE_VERSION = 1
 
 # Ordered 'specific to least-specific platform' in order for capabilities
 # to be drawn-down and represented by the most appropriate platform.
-SUPPORTED_PLATFORMS = [
-    "climate",
-    "fan",
-    "light",
-    "lock",
-    "cover",
-    "switch",
-    "binary_sensor",
-    "sensor",
-    "scene",
+PLATFORMS = [
+    Platform.CLIMATE,
+    Platform.FAN,
+    Platform.LIGHT,
+    Platform.LOCK,
+    Platform.COVER,
+    Platform.SWITCH,
+    Platform.BINARY_SENSOR,
+    Platform.SENSOR,
+    Platform.SCENE,
+]
+
+IGNORED_CAPABILITIES = [
+    "execute",
+    "healthCheck",
+    "ocf",
 ]
 
 TOKEN_REFRESH_INTERVAL = timedelta(days=14)

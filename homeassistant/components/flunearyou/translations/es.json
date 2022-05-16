@@ -1,10 +1,10 @@
 {
     "config": {
         "abort": {
-            "already_configured": "Estas coordenadas ya est\u00e1n registradas."
+            "already_configured": "La ubicaci\u00f3n ya est\u00e1 configurada"
         },
         "error": {
-            "general_error": "Se ha producido un error desconocido."
+            "unknown": "Error inesperado"
         },
         "step": {
             "user": {

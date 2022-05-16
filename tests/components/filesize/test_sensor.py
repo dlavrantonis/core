@@ -1,49 +1,71 @@
 """The tests for the filesize sensor."""
 import os
-import unittest
 
-from homeassistant.components.filesize.sensor import CONF_FILE_PATHS
-from homeassistant.setup import setup_component
+from homeassistant.const import CONF_FILE_PATH, STATE_UNAVAILABLE
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_component import async_update_entity
 
-from tests.common import get_test_home_assistant
+from . import TEST_FILE, TEST_FILE_NAME, async_create_file
 
-TEST_DIR = os.path.join(os.path.dirname(__file__))
-TEST_FILE = os.path.join(TEST_DIR, "mock_file_test_filesize.txt")
-
-
-def create_file(path):
-    """Create a test file."""
-    with open(path, "w") as test_file:
-        test_file.write("test")
+from tests.common import MockConfigEntry
 
 
-class TestFileSensor(unittest.TestCase):
-    """Test the filesize sensor."""
+async def test_invalid_path(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Test that an invalid path is caught."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, unique_id=TEST_FILE, data={CONF_FILE_PATH: TEST_FILE}
+    )
 
-    def setup_method(self, method):
-        """Set up things to be run when tests are started."""
-        self.hass = get_test_home_assistant()
-        self.hass.config.allowlist_external_dirs = {TEST_DIR}
+    state = hass.states.get("sensor." + TEST_FILE_NAME)
+    assert not state
 
-    def teardown_method(self, method):
-        """Stop everything that was started."""
-        if os.path.isfile(TEST_FILE):
-            os.remove(TEST_FILE)
-        self.hass.stop()
 
-    def test_invalid_path(self):
-        """Test that an invalid path is caught."""
-        config = {"sensor": {"platform": "filesize", CONF_FILE_PATHS: ["invalid_path"]}}
-        assert setup_component(self.hass, "sensor", config)
-        assert len(self.hass.states.entity_ids()) == 0
+async def test_valid_path(
+    hass: HomeAssistant, tmpdir: str, mock_config_entry: MockConfigEntry
+) -> None:
+    """Test for a valid path."""
+    testfile = f"{tmpdir}/file.txt"
+    await async_create_file(hass, testfile)
+    hass.config.allowlist_external_dirs = {tmpdir}
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, unique_id=testfile, data={CONF_FILE_PATH: testfile}
+    )
 
-    def test_valid_path(self):
-        """Test for a valid path."""
-        create_file(TEST_FILE)
-        config = {"sensor": {"platform": "filesize", CONF_FILE_PATHS: [TEST_FILE]}}
-        assert setup_component(self.hass, "sensor", config)
-        self.hass.block_till_done()
-        assert len(self.hass.states.entity_ids()) == 1
-        state = self.hass.states.get("sensor.mock_file_test_filesize_txt")
-        assert state.state == "0.0"
-        assert state.attributes.get("bytes") == 4
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.file_txt_size")
+    assert state
+    assert state.state == "0.0"
+
+    await hass.async_add_executor_job(os.remove, testfile)
+
+
+async def test_state_unavailable(
+    hass: HomeAssistant, tmpdir: str, mock_config_entry: MockConfigEntry
+) -> None:
+    """Verify we handle state unavailable."""
+    testfile = f"{tmpdir}/file.txt"
+    await async_create_file(hass, testfile)
+    hass.config.allowlist_external_dirs = {tmpdir}
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, unique_id=testfile, data={CONF_FILE_PATH: testfile}
+    )
+
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.file_txt_size")
+    assert state
+    assert state.state == "0.0"
+
+    await hass.async_add_executor_job(os.remove, testfile)
+    await async_update_entity(hass, "sensor.file_txt_size")
+
+    state = hass.states.get("sensor.file_txt_size")
+    assert state.state == STATE_UNAVAILABLE

@@ -1,7 +1,9 @@
 {
     "config": {
+        "abort": {
+            "already_configured": "O servi\u00e7o j\u00e1 est\u00e1 configurado"
+        },
         "error": {
-            "identifier_exists": "C\u00f3digo postal j\u00e1 registado",
             "invalid_zip_code": "C\u00f3digo postal inv\u00e1lido"
         },
         "step": {

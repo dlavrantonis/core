@@ -5,9 +5,17 @@ from requests.exceptions import ConnectTimeout, HTTPError
 from skybellpy import Skybell
 import voluptuous as vol
 
-from homeassistant.const import ATTR_ATTRIBUTION, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.components import persistent_notification
+from homeassistant.const import (
+    ATTR_ATTRIBUTION,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    __version__,
+)
+from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.typing import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,6 +27,8 @@ NOTIFICATION_TITLE = "Skybell Sensor Setup"
 DOMAIN = "skybell"
 DEFAULT_CACHEDB = "./skybell_cache.pickle"
 DEFAULT_ENTITY_NAMESPACE = "skybell"
+
+AGENT_IDENTIFIER = f"HomeAssistant/{__version__}"
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -33,7 +43,7 @@ CONFIG_SCHEMA = vol.Schema(
 )
 
 
-def setup(hass, config):
+def setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Skybell component."""
     conf = config[DOMAIN]
     username = conf.get(CONF_USERNAME)
@@ -42,13 +52,18 @@ def setup(hass, config):
     try:
         cache = hass.config.path(DEFAULT_CACHEDB)
         skybell = Skybell(
-            username=username, password=password, get_devices=True, cache_path=cache
+            username=username,
+            password=password,
+            get_devices=True,
+            cache_path=cache,
+            agent_identifier=AGENT_IDENTIFIER,
         )
 
         hass.data[DOMAIN] = skybell
     except (ConnectTimeout, HTTPError) as ex:
         _LOGGER.error("Unable to connect to Skybell service: %s", str(ex))
-        hass.components.persistent_notification.create(
+        persistent_notification.create(
+            hass,
             "Error: {}<br />"
             "You will need to restart hass after fixing."
             "".format(ex),
@@ -66,17 +81,12 @@ class SkybellDevice(Entity):
         """Initialize a sensor for Skybell device."""
         self._device = device
 
-    @property
-    def should_poll(self):
-        """Return the polling state."""
-        return True
-
     def update(self):
         """Update automation state."""
         self._device.refresh()
 
     @property
-    def device_state_attributes(self):
+    def extra_state_attributes(self):
         """Return the state attributes."""
         return {
             ATTR_ATTRIBUTION: ATTRIBUTION,

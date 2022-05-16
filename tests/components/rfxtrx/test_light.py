@@ -4,26 +4,27 @@ from unittest.mock import call
 import pytest
 
 from homeassistant.components.light import ATTR_BRIGHTNESS
+from homeassistant.components.rfxtrx import DOMAIN
+from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import State
-from homeassistant.setup import async_setup_component
 
-from . import _signal_event
-
-from tests.common import mock_restore_cache
+from tests.common import MockConfigEntry, mock_restore_cache
+from tests.components.rfxtrx.conftest import create_rfx_test_cfg
 
 
 async def test_one_light(hass, rfxtrx):
     """Test with 1 light."""
-    assert await async_setup_component(
-        hass,
-        "rfxtrx",
-        {"rfxtrx": {"device": "abcd", "devices": {"0b1100cd0213c7f210020f51": {}}}},
-    )
+    entry_data = create_rfx_test_cfg(devices={"0b1100cd0213c7f210020f51": {}})
+    mock_entry = MockConfigEntry(domain="rfxtrx", unique_id=DOMAIN, data=entry_data)
+
+    mock_entry.add_to_hass(hass)
+
+    await hass.config_entries.async_setup(mock_entry.entry_id)
     await hass.async_block_till_done()
 
     state = hass.states.get("light.ac_213c7f2_16")
     assert state
-    assert state.state == "off"
+    assert state.state == STATE_UNKNOWN
     assert state.attributes.get("friendly_name") == "AC 213c7f2:16"
 
     await hass.services.async_call(
@@ -97,11 +98,12 @@ async def test_state_restore(hass, rfxtrx, state, brightness):
         hass, [State(entity_id, state, attributes={ATTR_BRIGHTNESS: brightness})]
     )
 
-    assert await async_setup_component(
-        hass,
-        "rfxtrx",
-        {"rfxtrx": {"device": "abcd", "devices": {"0b1100cd0213c7f210020f51": {}}}},
-    )
+    entry_data = create_rfx_test_cfg(devices={"0b1100cd0213c7f210020f51": {}})
+    mock_entry = MockConfigEntry(domain="rfxtrx", unique_id=DOMAIN, data=entry_data)
+
+    mock_entry.add_to_hass(hass)
+
+    await hass.config_entries.async_setup(mock_entry.entry_id)
     await hass.async_block_till_done()
 
     assert hass.states.get(entity_id).state == state
@@ -110,78 +112,64 @@ async def test_state_restore(hass, rfxtrx, state, brightness):
 
 async def test_several_lights(hass, rfxtrx):
     """Test with 3 lights."""
-    assert await async_setup_component(
-        hass,
-        "rfxtrx",
-        {
-            "rfxtrx": {
-                "device": "abcd",
-                "devices": {
-                    "0b1100cd0213c7f230020f71": {},
-                    "0b1100100118cdea02020f70": {},
-                    "0b1100101118cdea02050f70": {},
-                },
-            }
-        },
+    entry_data = create_rfx_test_cfg(
+        devices={
+            "0b1100cd0213c7f230020f71": {},
+            "0b1100100118cdea02020f70": {},
+            "0b1100101118cdea02050f70": {},
+        }
     )
+    mock_entry = MockConfigEntry(domain="rfxtrx", unique_id=DOMAIN, data=entry_data)
+
+    mock_entry.add_to_hass(hass)
+
+    await hass.config_entries.async_setup(mock_entry.entry_id)
     await hass.async_block_till_done()
+    await hass.async_start()
 
     state = hass.states.get("light.ac_213c7f2_48")
     assert state
-    assert state.state == "off"
+    assert state.state == STATE_UNKNOWN
     assert state.attributes.get("friendly_name") == "AC 213c7f2:48"
 
     state = hass.states.get("light.ac_118cdea_2")
     assert state
-    assert state.state == "off"
+    assert state.state == STATE_UNKNOWN
     assert state.attributes.get("friendly_name") == "AC 118cdea:2"
 
     state = hass.states.get("light.ac_1118cdea_2")
     assert state
-    assert state.state == "off"
+    assert state.state == STATE_UNKNOWN
     assert state.attributes.get("friendly_name") == "AC 1118cdea:2"
 
+    await rfxtrx.signal("0b1100cd0213c7f230010f71")
+    state = hass.states.get("light.ac_213c7f2_48")
+    assert state
+    assert state.state == "on"
 
-@pytest.mark.parametrize("repetitions", [1, 3])
-async def test_repetitions(hass, rfxtrx, repetitions):
-    """Test signal repetitions."""
-    assert await async_setup_component(
-        hass,
-        "rfxtrx",
-        {
-            "rfxtrx": {
-                "device": "abcd",
-                "devices": {
-                    "0b1100cd0213c7f230020f71": {"signal_repetitions": repetitions}
-                },
-            }
-        },
-    )
-    await hass.async_block_till_done()
+    await rfxtrx.signal("0b1100cd0213c7f230000f71")
+    state = hass.states.get("light.ac_213c7f2_48")
+    assert state
+    assert state.state == "off"
 
-    await hass.services.async_call(
-        "light", "turn_on", {"entity_id": "light.ac_213c7f2_48"}, blocking=True
-    )
-    await hass.async_block_till_done()
-
-    assert rfxtrx.transport.send.call_count == repetitions
+    await rfxtrx.signal("0b1100cd0213c7f230020f71")
+    state = hass.states.get("light.ac_213c7f2_48")
+    assert state
+    assert state.state == "on"
+    assert state.attributes.get("brightness") == 255
 
 
-async def test_discover_light(hass, rfxtrx):
+async def test_discover_light(hass, rfxtrx_automatic):
     """Test with discovery of lights."""
-    assert await async_setup_component(
-        hass, "rfxtrx", {"rfxtrx": {"device": "abcd", "automatic_add": True}},
-    )
-    await hass.async_block_till_done()
-    await hass.async_start()
+    rfxtrx = rfxtrx_automatic
 
-    await _signal_event(hass, "0b11009e00e6116202020070")
+    await rfxtrx.signal("0b11009e00e6116202020070")
     state = hass.states.get("light.ac_0e61162_2")
     assert state
     assert state.state == "on"
     assert state.attributes.get("friendly_name") == "AC 0e61162:2"
 
-    await _signal_event(hass, "0b1100120118cdea02020070")
+    await rfxtrx.signal("0b1100120118cdea02020070")
     state = hass.states.get("light.ac_118cdea_2")
     assert state
     assert state.state == "on"

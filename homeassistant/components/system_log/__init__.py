@@ -1,15 +1,18 @@
 """Support for system log."""
 from collections import OrderedDict, deque
 import logging
+import queue
 import re
 import traceback
 
 import voluptuous as vol
 
 from homeassistant import __path__ as HOMEASSISTANT_PATH
-from homeassistant.components.http import HomeAssistantView
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.components import websocket_api
+from homeassistant.const import EVENT_HOMEASSISTANT_CLOSE, EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.typing import ConfigType
 
 CONF_MAX_ENTRIES = "max_entries"
 CONF_FIRE_EVENT = "fire_event"
@@ -79,8 +82,7 @@ def _figure_out_source(record, call_stack, hass):
     for pathname in reversed(stack):
 
         # Try to match with a file within Home Assistant
-        match = re.match(paths_re, pathname[0])
-        if match:
+        if match := re.match(paths_re, pathname[0]):
             return [match.group(1), pathname[1]]
     # Ok, we don't know what this is
     return (record.pathname, record.lineno)
@@ -155,6 +157,17 @@ class DedupStore(OrderedDict):
         return [value.to_dict() for value in reversed(self.values())]
 
 
+class LogErrorQueueHandler(logging.handlers.QueueHandler):
+    """Process the log in another thread."""
+
+    def emit(self, record):
+        """Emit a log record."""
+        try:
+            self.enqueue(record)
+        except Exception:  # pylint: disable=broad-except
+            self.handleError(record)
+
+
 class LogErrorHandler(logging.Handler):
     """Log handler for error messages."""
 
@@ -172,31 +185,48 @@ class LogErrorHandler(logging.Handler):
         default upper limit is set to 50 (older entries are discarded) but can
         be changed if needed.
         """
-        if record.levelno >= logging.WARN:
-            stack = []
-            if not record.exc_info:
-                stack = [(f[0], f[1]) for f in traceback.extract_stack()]
+        stack = []
+        if not record.exc_info:
+            stack = [(f[0], f[1]) for f in traceback.extract_stack()]
 
-            entry = LogEntry(
-                record, stack, _figure_out_source(record, stack, self.hass)
-            )
-            self.records.add_entry(entry)
-            if self.fire_event:
-                self.hass.bus.fire(EVENT_SYSTEM_LOG, entry.to_dict())
+        entry = LogEntry(record, stack, _figure_out_source(record, stack, self.hass))
+        self.records.add_entry(entry)
+        if self.fire_event:
+            self.hass.bus.fire(EVENT_SYSTEM_LOG, entry.to_dict())
 
 
-async def async_setup(hass, config):
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the logger component."""
-    conf = config.get(DOMAIN)
-    if conf is None:
+    if (conf := config.get(DOMAIN)) is None:
         conf = CONFIG_SCHEMA({DOMAIN: {}})[DOMAIN]
 
+    simple_queue: queue.SimpleQueue = queue.SimpleQueue()
+    queue_handler = LogErrorQueueHandler(simple_queue)
+    queue_handler.setLevel(logging.WARN)
+    logging.root.addHandler(queue_handler)
+
     handler = LogErrorHandler(hass, conf[CONF_MAX_ENTRIES], conf[CONF_FIRE_EVENT])
-    logging.getLogger().addHandler(handler)
 
-    hass.http.register_view(AllErrorsView(handler))
+    hass.data[DOMAIN] = handler
 
-    async def async_service_handler(service):
+    listener = logging.handlers.QueueListener(
+        simple_queue, handler, respect_handler_level=True
+    )
+
+    listener.start()
+
+    @callback
+    def _async_stop_queue_handler(_) -> None:
+        """Cleanup handler."""
+        logging.root.removeHandler(queue_handler)
+        listener.stop()
+        del hass.data[DOMAIN]
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_CLOSE, _async_stop_queue_handler)
+
+    websocket_api.async_register_command(hass, list_errors)
+
+    async def async_service_handler(service: ServiceCall) -> None:
         """Handle logger services."""
         if service.service == "clear":
             handler.records.clear()
@@ -225,16 +255,14 @@ async def async_setup(hass, config):
     return True
 
 
-class AllErrorsView(HomeAssistantView):
-    """Get all logged errors and warnings."""
-
-    url = "/api/error/all"
-    name = "api:error:all"
-
-    def __init__(self, handler):
-        """Initialize a new AllErrorsView."""
-        self.handler = handler
-
-    async def get(self, request):
-        """Get all errors and warnings."""
-        return self.json(self.handler.records.to_list())
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): "system_log/list"})
+@callback
+def list_errors(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
+):
+    """List all possible diagnostic handlers."""
+    connection.send_result(
+        msg["id"],
+        hass.data[DOMAIN].records.to_list(),
+    )

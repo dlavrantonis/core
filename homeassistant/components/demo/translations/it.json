@@ -3,20 +3,21 @@
         "step": {
             "init": {
                 "data": {
-                    "one": "uno",
-                    "other": "altri"
+                    "one": "Vuoto",
+                    "other": "Vuoti"
                 }
             },
             "options_1": {
                 "data": {
                     "bool": "Valore booleano facoltativo",
+                    "constant": "Costante",
                     "int": "Input numerico"
                 }
             },
             "options_2": {
                 "data": {
                     "multi": "Selezione multipla",
-                    "select": "Selezionare un'opzione",
+                    "select": "Seleziona un'opzione",
                     "string": "Valore stringa"
                 }
             }

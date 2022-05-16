@@ -11,7 +11,15 @@ from homeassistant.components.notify import (
     PLATFORM_SCHEMA,
     BaseNotificationService,
 )
+from homeassistant.components.telegram_bot import (
+    ATTR_DISABLE_NOTIF,
+    ATTR_MESSAGE_TAG,
+    ATTR_PARSER,
+)
 from homeassistant.const import ATTR_LOCATION
+from homeassistant.helpers.reload import setup_reload_service
+
+from . import DOMAIN as TELEGRAM_DOMAIN, PLATFORMS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,6 +28,7 @@ ATTR_KEYBOARD = "keyboard"
 ATTR_INLINE_KEYBOARD = "inline_keyboard"
 ATTR_PHOTO = "photo"
 ATTR_VIDEO = "video"
+ATTR_VOICE = "voice"
 ATTR_DOCUMENT = "document"
 
 CONF_CHAT_ID = "chat_id"
@@ -29,6 +38,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({vol.Required(CONF_CHAT_ID): vol.Coerce
 
 def get_service(hass, config, discovery_info=None):
     """Get the Telegram notification service."""
+
+    setup_reload_service(hass, TELEGRAM_DOMAIN, PLATFORMS)
     chat_id = config.get(CONF_CHAT_ID)
     return TelegramNotificationService(hass, chat_id)
 
@@ -50,6 +61,21 @@ class TelegramNotificationService(BaseNotificationService):
             service_data.update({ATTR_MESSAGE: message})
         data = kwargs.get(ATTR_DATA)
 
+        # Set message tag
+        if data is not None and ATTR_MESSAGE_TAG in data:
+            message_tag = data.get(ATTR_MESSAGE_TAG)
+            service_data.update({ATTR_MESSAGE_TAG: message_tag})
+
+        # Set disable_notification
+        if data is not None and ATTR_DISABLE_NOTIF in data:
+            disable_notification = data.get(ATTR_DISABLE_NOTIF)
+            service_data.update({ATTR_DISABLE_NOTIF: disable_notification})
+
+        # Set parse_mode
+        if data is not None and ATTR_PARSER in data:
+            parse_mode = data.get(ATTR_PARSER)
+            service_data.update({ATTR_PARSER: parse_mode})
+
         # Get keyboard info
         if data is not None and ATTR_KEYBOARD in data:
             keys = data.get(ATTR_KEYBOARD)
@@ -60,7 +86,7 @@ class TelegramNotificationService(BaseNotificationService):
             keys = keys if isinstance(keys, list) else [keys]
             service_data.update(inline_keyboard=keys)
 
-        # Send a photo, video, document, or location
+        # Send a photo, video, document, voice, or location
         if data is not None and ATTR_PHOTO in data:
             photos = data.get(ATTR_PHOTO)
             photos = photos if isinstance(photos, list) else [photos]
@@ -74,6 +100,13 @@ class TelegramNotificationService(BaseNotificationService):
             for video_data in videos:
                 service_data.update(video_data)
                 self.hass.services.call(DOMAIN, "send_video", service_data=service_data)
+            return
+        if data is not None and ATTR_VOICE in data:
+            voices = data.get(ATTR_VOICE)
+            voices = voices if isinstance(voices, list) else [voices]
+            for voice_data in voices:
+                service_data.update(voice_data)
+                self.hass.services.call(DOMAIN, "send_voice", service_data=service_data)
             return
         if data is not None and ATTR_LOCATION in data:
             service_data.update(data.get(ATTR_LOCATION))
