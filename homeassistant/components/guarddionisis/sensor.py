@@ -116,14 +116,13 @@ class GuardSensorEntity(SensorEntity):
         id,
         type
     ):
-        self.theDB = DBAccess('/Users/dionisis/TrackedObjectsDim.db')
+        self.theDB = DBAccess('/home/dionisis/Database/TrackedObjectsDim.db')
         _LOGGER.debug("Setting up dionisissensor...")
         self._hass = hass
         self._name = name
         self._id = id
         self._type = type
         self._state = self.theDB.getAreaCounter(id) if self._type =='area' else self.theDB.getRegionCounter(id) if self._type =='region' else self.theDB.getAlarmSensorStatus(id)
-        llll= self._state
 
     @property
     def name(self):
@@ -146,7 +145,6 @@ class GuardSensorEntity(SensorEntity):
 
     async def set_alarm_status(self,alarm_status):
         try:
-           lll=1
            self.theDB.setAlarmSensorStatus(self._id,alarm_status)
            self._state = alarm_status
         except:

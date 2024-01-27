@@ -52,7 +52,7 @@ class GuardAlarmEntity(alarm.AlarmControlPanelEntity):
 
     def __init__(self, hass, name,id):
         """Initialize the Alarm.com status."""
-        self.theDB = DBAccess('/Users/dionisis/TrackedObjectsDim.db')
+        self.theDB = DBAccess('/home/dionisis/Database/TrackedObjectsDim.db')
         _LOGGER.debug("Setting up dionisisalarm...")
         self._hass = hass
         self._name = name
