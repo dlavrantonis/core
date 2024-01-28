@@ -63,7 +63,7 @@ class DBAccess:
     def getRegionCounter(self, ID):
         try:
             cur = self.conn.cursor()
-            cur.execute("SELECT counted FROM RegionMonitoring WHERE RegionID=?", (ID,))
+            cur.execute("SELECT count FROM RegionMonitoring WHERE RegionID=?", (ID,))
             rows = cur.fetchall()
             state = rows[0][0]
             cur.close()
