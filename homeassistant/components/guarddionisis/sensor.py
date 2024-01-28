@@ -137,7 +137,11 @@ class GuardSensorEntity(SensorEntity):
     @property
     def unit_of_measurement(self):
         """Return the unit of measurement."""
-        return "" if self._type == "alarm" else "people" 
+        return "" if self._type == "alarm" else "people"
+ 
+    @property
+    def should_poll(self):
+        return False
 
     async def async_update(self):
         """Fetch new state data for the sensor."""
