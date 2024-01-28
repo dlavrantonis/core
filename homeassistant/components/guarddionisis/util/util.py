@@ -237,6 +237,7 @@ class SensorServicer(sensor_pb2_grpc.SensorServiceServicer):
         self.test = request.value
         #llll = self.hass.states
         #self.hass.states._states["sensor.internal"]= request.value
+        print("SetSensorData entity:"+str(request.entity_id)+" value:"+str(request.value))
 
         entity = self.hass.states.get(request.entity_id)
         attr = entity.attributes#{'unit_of_measurement':'People'}
