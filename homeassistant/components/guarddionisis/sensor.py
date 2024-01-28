@@ -116,7 +116,7 @@ class GuardSensorEntity(SensorEntity):
         id,
         type
     ):
-        self.theDB = DBAccess('/home/dionisis/Database/TrackedObjectsDim.db')
+        self.theDB = DBAccess('/Users/dionisis/TrackedObjectsDim.db')
         _LOGGER.debug("Setting up dionisissensor...")
         self._hass = hass
         self._name = name
@@ -139,9 +139,9 @@ class GuardSensorEntity(SensorEntity):
         """Return the unit of measurement."""
         return "" if self._type == "alarm" else "people" 
 
-    # async def async_update(self):
-    #     """Fetch new state data for the sensor."""
-    #     self._state = self.theDB.getState(self.area_id )
+    async def async_update(self):
+        """Fetch new state data for the sensor."""
+        self._state = self.theDB.getAreaCounter(id) if self._type =='area' else self.theDB.getRegionCounter(id) if self._type =='region' else self.theDB.getAlarmSensorStatus(id)
 
     async def set_alarm_status(self,alarm_status):
         try:
