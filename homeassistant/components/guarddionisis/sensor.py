@@ -116,7 +116,7 @@ class GuardSensorEntity(SensorEntity):
         id,
         type
     ):
-        self.theDB = DBAccess('/Users/dionisis/TrackedObjectsDim.db')
+        self.theDB = DBAccess('/home/dionisis/Database/TrackedObjectsDim.db')
         _LOGGER.debug("Setting up dionisissensor...")
         self._hass = hass
         self._name = name
