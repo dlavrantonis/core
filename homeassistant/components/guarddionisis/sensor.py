@@ -146,7 +146,7 @@ class GuardSensorEntity(SensorEntity):
     async def async_update(self):
         """Fetch new state data for the sensor."""
         #return
-        self._state = self.theDB.getAreaCounter(self._id) if self._type =='area' else self.theDB.getRegionCounter(self._id) if self._type =='region' else self.theDB.getAlarmSensorStatus(self._id)
+        #self._state = self.theDB.getAreaCounter(self._id) if self._type =='area' else self.theDB.getRegionCounter(self._id) if self._type =='region' else self.theDB.getAlarmSensorStatus(self._id)
         self.async_update_ha_state()
 
     async def set_alarm_status(self,alarm_status):
