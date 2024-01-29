@@ -167,6 +167,7 @@ class GuardSensorEntity(SensorEntity):
            self.theDB.setAlarmSensorStatus(self._id,alarm_status)
            self._state = alarm_status
         #    self.async_update()
+           await self.async_write_ha_state()
         except:
             lll=2
 
@@ -204,7 +205,7 @@ class GuardSensorEntity(SensorEntity):
             tt = str(int(tt)+1)
             self.theDB.setRegionCounter(self._id,tt)
             self._state = tt
-
+           await self.async_write_ha_state()
         #    self.async_update()
 
         except:
@@ -222,5 +223,7 @@ class GuardSensorEntity(SensorEntity):
             tt = str(int(tt)-1)
             self.theDB.setRegionCounter(self._id,tt)
             self._state = tt
+           await self.async_write_ha_state()
+
         except:
             lll=2
