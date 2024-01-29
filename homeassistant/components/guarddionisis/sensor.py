@@ -170,6 +170,7 @@ class GuardSensorEntity(SensorEntity):
             self.theDB.setAreaCounter(self._id,value)
            elif (self._type == 'region'):
             self.theDB.setRegionCounter(self._id,value) 
+            self.async_update_ha_state()
            elif (self._type == 'alarm'):
             self.theDB.setAlarmSensorStatus(self._id,value)       
            self._state = value
