@@ -74,7 +74,7 @@ class DBAccess:
     def setRegionCounter(self, ID, status):
         try:
             cur = self.conn.cursor()
-            sql = 'Update RegionMonitoring set counted = ? where RegionID = ?'
+            sql = 'Update RegionMonitoring set count = ? where RegionID = ?'
             data = (status, ID)
             cur.execute(sql, data)
             self.conn.commit()
