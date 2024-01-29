@@ -139,15 +139,28 @@ class GuardSensorEntity(SensorEntity):
         """Return the unit of measurement."""
         return "" if self._type == "alarm" else "people"
  
-    # @property
-    # def should_poll(self):
-    #     return False
+    @property
+    def should_poll(self):
+        return False
 
     # async def async_update(self):
     #     """Fetch new state data for the sensor."""
     #     #return
     #     #self._state = self.theDB.getAreaCounter(self._id) if self._type =='area' else self.theDB.getRegionCounter(self._id) if self._type =='region' else self.theDB.getAlarmSensorStatus(self._id)
     #     self.async_update_ha_state()
+
+    async def async_update(self):
+        # Manually update the state based on your custom asynchronous logic.
+        new_state = await self.async_calculate_new_state()
+        if new_state != self._state:
+            self._state = new_state
+            self.async_write_ha_state()
+
+    async def async_calculate_new_state(self):
+        # Replace this with your custom asynchronous logic to determine the new state.
+        # For example, querying an external system, calculating, etc.
+        return self.theDB.getAreaCounter(self._id) if self._type =='area' else self.theDB.getRegionCounter(self._id) if self._type =='region' else self.theDB.getAlarmSensorStatus(self._id)
+
 
     async def set_alarm_status(self,alarm_status):
         try:
@@ -164,17 +177,17 @@ class GuardSensorEntity(SensorEntity):
             lll=2
 
     async def set_counter(self,value):
+        print("set_counter")
         try:
            lll=1
            if (self._type =='area'):
             self.theDB.setAreaCounter(self._id,value)
            elif (self._type == 'region'):
             self.theDB.setRegionCounter(self._id,value) 
-            self.async_update_ha_state()
            elif (self._type == 'alarm'):
             self.theDB.setAlarmSensorStatus(self._id,value)       
            self._state = value
-        #    self.async_update()
+           await self.async_write_ha_state()
         except:
             lll=2
 
