@@ -145,12 +145,14 @@ class GuardSensorEntity(SensorEntity):
 
     async def async_update(self):
         """Fetch new state data for the sensor."""
-        self._state = self.theDB.getAreaCounter(self._id) if self._type =='area' else self.theDB.getRegionCounter(self._id) if self._type =='region' else self.theDB.getAlarmSensorStatus(self._id)
+        return
+        #self._state = self.theDB.getAreaCounter(self._id) if self._type =='area' else self.theDB.getRegionCounter(self._id) if self._type =='region' else self.theDB.getAlarmSensorStatus(self._id)
 
     async def set_alarm_status(self,alarm_status):
         try:
            self.theDB.setAlarmSensorStatus(self._id,alarm_status)
            self._state = alarm_status
+           self.async_update()
         except:
             lll=2
 
@@ -170,6 +172,7 @@ class GuardSensorEntity(SensorEntity):
            elif (self._type == 'alarm'):
             self.theDB.setAlarmSensorStatus(self._id,value)       
            self._state = value
+           self.async_update()
         except:
             lll=2
 
@@ -186,6 +189,8 @@ class GuardSensorEntity(SensorEntity):
             tt = str(int(tt)+1)
             self.theDB.setRegionCounter(self._id,tt)
             self._state = tt
+            
+           self.async_update()
 
         except:
             lll=2
