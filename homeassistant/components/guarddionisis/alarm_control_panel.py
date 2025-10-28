@@ -4,26 +4,17 @@ import logging
 
 import voluptuous as vol
 
-import homeassistant.components.alarm_control_panel as alarm
-from homeassistant.components.alarm_control_panel import PLATFORM_SCHEMA
-from homeassistant.components.alarm_control_panel.const import (
-    SUPPORT_ALARM_ARM_AWAY,
-    SUPPORT_ALARM_ARM_HOME,
-    SUPPORT_ALARM_ARM_NIGHT,
-    SUPPORT_ALARM_TRIGGER,
+from homeassistant.components.alarm_control_panel import (
+    PLATFORM_SCHEMA,
+    AlarmControlPanelEntity,
+    AlarmControlPanelEntityFeature,
+    AlarmControlPanelState,
 )
 from homeassistant.components.guarddionisis.util.util import DBAccess
 from homeassistant.const import (
     CONF_ID,
     CONF_NAME,
-    STATE_ALARM_ARMED_AWAY,
-    STATE_ALARM_ARMED_HOME,
-    STATE_ALARM_DISARMED,
-    STATE_ALARM_ARMED_DAY,
-    STATE_ALARM_ARMED_NIGHT,
-    STATE_ALARM_TRIGGERED,
 )
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,29 +38,37 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 
 
-class GuardAlarmEntity(alarm.AlarmControlPanelEntity):
+class GuardAlarmEntity(AlarmControlPanelEntity):
     """Representation of an Alarm.com status."""
+    
+    _attr_code_arm_required = False
 
-    def __init__(self, hass, name,id):
+    def __init__(self, hass, name, id):
         """Initialize the Alarm.com status."""
-        self.theDB = DBAccess('/home/dionisis/Database/TrackedObjectsDim.db')
+        self.theDB = DBAccess('Database/TrackedObjectsDim.db')
         _LOGGER.debug("Setting up dionisisalarm...")
         self._hass = hass
         self._name = name
         self._id = id
-        #self._websession = async_get_clientsession(self._hass)
-        self._state = self.theDB.getAlarmState(id)
-
-        #self._alarm = alarmDionisis(hass, name)
-
-    # async def async_login(self):
-    #     """Login to Alarm.com."""
-    #     await self._alarm.async_login()
+        
+        if self.theDB.conn and id is not None:
+            db_state = self.theDB.getAlarmState(id)
+            try:
+                self._attr_alarm_state = AlarmControlPanelState(db_state) if db_state else AlarmControlPanelState.DISARMED
+            except ValueError:
+                self._attr_alarm_state = AlarmControlPanelState.DISARMED
+        else:
+            self._attr_alarm_state = AlarmControlPanelState.DISARMED
 
     async def async_update(self):
         """Fetch the latest state."""
-        #await self._alarm.async_update()
-        return self.state
+        if self.theDB.conn and self._id:
+            db_state = self.theDB.getAlarmState(self._id)
+            if db_state:
+                try:
+                    self._attr_alarm_state = AlarmControlPanelState(db_state)
+                except ValueError:
+                    pass
 
     @property
     def name(self):
@@ -77,44 +76,65 @@ class GuardAlarmEntity(alarm.AlarmControlPanelEntity):
         return self._name
 
     @property
-    def state(self):
-        """Return the state of the alarm."""
-        return self._state
-
-    @property
     def supported_features(self) -> int:
         """Return the list of supported features."""
-        return SUPPORT_ALARM_ARM_HOME | SUPPORT_ALARM_ARM_AWAY | SUPPORT_ALARM_ARM_NIGHT | SUPPORT_ALARM_TRIGGER
+        return (
+            AlarmControlPanelEntityFeature.ARM_HOME
+            | AlarmControlPanelEntityFeature.ARM_AWAY
+            | AlarmControlPanelEntityFeature.ARM_NIGHT
+            | AlarmControlPanelEntityFeature.TRIGGER
+        )
 
     async def async_alarm_disarm(self, code=None):
         """Send disarm command."""
+        if not self.theDB.conn:
+            return
         if await self.theDB.Disarm(self._id):
-            self._state = STATE_ALARM_DISARMED
-            await self.theDB.setAlarmState(self._id, self._state)
+            self._attr_alarm_state = AlarmControlPanelState.DISARMED
+            await self.theDB.setAlarmState(self._id, self._attr_alarm_state.value)
+            # self.async_write_ha_state()
 
     async def async_alarm_arm_home(self, code=None):
         """Send arm home command."""
+        if not self.theDB.conn:
+            return
         if await self.theDB.ArmHome(self._id):
-            self._state = STATE_ALARM_ARMED_HOME
-            await self.theDB.setAlarmState(self._id, self._state)
+            self._attr_alarm_state = AlarmControlPanelState.ARMED_HOME
+            await self.theDB.setAlarmState(self._id, self._attr_alarm_state.value)
+            # self.async_write_ha_state()
 
     async def async_alarm_arm_away(self, code=None):
         """Send arm away command."""
+        if not self.theDB.conn:
+            return
         if await self.theDB.ArmAway(self._id):
-            self._state = STATE_ALARM_ARMED_AWAY
-            await self.theDB.setAlarmState(self._id, self._state)
+            self._attr_alarm_state = AlarmControlPanelState.ARMED_AWAY
+            await self.theDB.setAlarmState(self._id, self._attr_alarm_state.value)
+            # self.async_write_ha_state()
 
     async def async_alarm_arm_night(self, code=None):
+        """Send arm night command."""
+        if not self.theDB.conn:
+            return
         if await self.theDB.ArmNight(self._id):
-            self._state = STATE_ALARM_ARMED_NIGHT
-            await self.theDB.setAlarmState(self._id, self._state)
+            self._attr_alarm_state = AlarmControlPanelState.ARMED_NIGHT
+            await self.theDB.setAlarmState(self._id, self._attr_alarm_state.value)
+            # self.async_write_ha_state()
 
     async def async_alarm_trigger(self, code=None):
-        if await self.theDB.Disarm(self._id): #for now
-            self._state = STATE_ALARM_TRIGGERED
-            await self.theDB.setAlarmState(self._id, self._state)
+        """Send alarm trigger command."""
+        if not self.theDB.conn:
+            return
+        if await self.theDB.Disarm(self._id):
+            self._attr_alarm_state = AlarmControlPanelState.TRIGGERED
+            await self.theDB.setAlarmState(self._id, self._attr_alarm_state.value)
+            # self.async_write_ha_state()
 
     async def async_alarm_day(self, code=None):
-        if await self.theDB.ArmDay(self._id): #for now
-            self._state = STATE_ALARM_ARMED_DAY
-            await self.theDB.setAlarmState(self._id, self._state)
+        """Send arm day command."""
+        if not self.theDB.conn:
+            return
+        if await self.theDB.ArmDay(self._id):
+            self._attr_alarm_state = AlarmControlPanelState.ARMED_HOME
+            await self.theDB.setAlarmState(self._id, self._attr_alarm_state.value)
+            # self.async_write_ha_state()

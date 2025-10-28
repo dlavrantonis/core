@@ -4,7 +4,7 @@
   "documentation": "https://github.com/home-assistant/example-custom-config/tree/master/custom_components/example_sensor/",
   "dependencies": [],
   "codeowners": ["@dionisis"],
-  "requirements": ["grpcio==1.60.0","grpcio-tools==1.60.0"],
+  "requirements": ["grpcio==1.72.1","grpcio-tools==1.72.1"],
   "iot_class": "local_push",
   "version": "0.1.0",
   "config_flow": false
