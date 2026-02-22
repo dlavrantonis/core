@@ -88,4 +88,4 @@ deincrement_counter:
       example: "sensor.front_garden"
       selector:
         entity:
-          integration: guaguarddionisisrd
+          integration: guarddionisis
