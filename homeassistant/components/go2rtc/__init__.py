@@ -8,7 +8,6 @@ from tempfile import mkdtemp
 from typing import override
 
 from aiohttp import ClientSession, UnixConnector, encode_basic_auth
-from aiohttp.client_exceptions import ClientConnectionError, ServerConnectionError
 from awesomeversion import AwesomeVersion
 from go2rtc_client import Go2RtcRestClient
 from go2rtc_client.exceptions import Go2RtcClientError, Go2RtcVersionError
@@ -117,7 +116,6 @@ CONFIG_SCHEMA = probatio.Schema(
 )
 
 _DATA_GO2RTC: HassKey[Go2RtcConfig] = HassKey(DOMAIN)
-_RETRYABLE_ERRORS = (ClientConnectionError, ServerConnectionError)
 type Go2RtcConfigEntry = ConfigEntry[WebRTCProvider]
 
 
@@ -231,12 +229,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: Go2RtcConfigEntry) -> bo
                 },
             )
     except Go2RtcClientError as err:
-        if isinstance(err.__cause__, _RETRYABLE_ERRORS):
-            raise ConfigEntryNotReady(
-                f"Could not connect to go2rtc instance on {url}"
-            ) from err
-        _LOGGER.warning("Could not connect to go2rtc instance on %s (%s)", url, err)
-        return False
+        # A refused connection retries. A half-started server (empty client error)
+        # used to abort setup for the whole run, so ha-web-rtc-player never got a provider.
+        raise ConfigEntryNotReady(
+            f"Could not connect to go2rtc instance on {url}"
+        ) from err
     except Go2RtcVersionError as err:
         ir.async_create_issue(
             hass,

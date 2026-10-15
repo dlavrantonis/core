@@ -14,8 +14,10 @@ import respx
 
 from homeassistant.components.camera import (
     DEFAULT_CONTENT_TYPE,
+    StreamType,
     async_get_mjpeg_stream,
     async_get_stream_source,
+    get_camera_from_entity_id,
 )
 from homeassistant.components.generic.const import (
     CONF_CONTENT_TYPE,
@@ -448,6 +450,20 @@ async def test_setup_alternative_options(
 
 
 @respx.mock
+async def test_ip_camera_does_not_advertise_hls(hass: HomeAssistant) -> None:
+    """Live IP cameras are not offered to the frontend as HLS."""
+    await help_setup_mock_config_entry(
+        hass,
+        {
+            "name": "config_test",
+            "stream_source": "rtsp://example.com:554/rtsp/",
+        },
+    )
+
+    camera = get_camera_from_entity_id(hass, "camera.config_test")
+    assert StreamType.HLS not in camera.camera_capabilities.frontend_stream_types
+
+
 async def test_no_stream_source(
     hass: HomeAssistant,
     hass_client: ClientSessionGenerator,

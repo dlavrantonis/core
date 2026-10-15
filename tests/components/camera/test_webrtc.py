@@ -56,10 +56,7 @@ async def test_async_register_webrtc_provider(
     unregister = async_register_webrtc_provider(hass, provider)
     await hass.async_block_till_done()
 
-    assert camera.camera_capabilities.frontend_stream_types == {
-        StreamType.HLS,
-        StreamType.WEB_RTC,
-    }
+    assert camera.camera_capabilities.frontend_stream_types == {StreamType.WEB_RTC}
 
     # Mark stream as unsupported
     provider._is_supported = False
@@ -72,10 +69,7 @@ async def test_async_register_webrtc_provider(
     provider._is_supported = True
     # Manually refresh the provider
     await camera.async_refresh_providers()
-    assert camera.camera_capabilities.frontend_stream_types == {
-        StreamType.HLS,
-        StreamType.WEB_RTC,
-    }
+    assert camera.camera_capabilities.frontend_stream_types == {StreamType.WEB_RTC}
 
     unregister()
     await hass.async_block_till_done()

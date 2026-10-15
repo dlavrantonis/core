@@ -24,7 +24,7 @@ from homeassistant.const import (
     CONF_VERIFY_SSL,
     HTTP_DIGEST_AUTHENTICATION,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -73,6 +73,12 @@ def generate_auth(device_info: Mapping[str, Any]) -> httpx.Auth | None:
 
 class GenericCamera(Camera):
     """A generic implementation of an IP camera."""
+
+    @callback
+    @override
+    def _frontend_stream_hls(self) -> bool:
+        """Live IP cameras are not played as HLS."""
+        return False
 
     _last_image: bytes | None
     _last_update: float

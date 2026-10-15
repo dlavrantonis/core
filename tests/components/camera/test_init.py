@@ -871,7 +871,7 @@ async def test_camera_capabilities_hls(
         hass_ws_client,
         "camera.demo_camera",
         {StreamType.HLS},
-        {StreamType.HLS, StreamType.WEB_RTC},
+        {StreamType.WEB_RTC},
     )
 
 
@@ -915,7 +915,7 @@ async def test_camera_capabilities_changing_non_native_support(
         hass_ws_client,
         cam.entity_id,
         {StreamType.HLS},
-        {StreamType.HLS, StreamType.WEB_RTC},
+        {StreamType.WEB_RTC},
     )
 
     cam._attr_supported_features = camera.CameraEntityFeature(0)

@@ -733,6 +733,11 @@ class Camera(Entity, cached_properties=CACHED_PROPERTIES_WITH_ATTR_):
             self._webrtc_provider.async_close_session(session_id)
 
     @callback
+    def _frontend_stream_hls(self) -> bool:
+        """Return whether the frontend may play this camera as HLS."""
+        return True
+
+    @callback
     def _invalidate_camera_capabilities_cache(self) -> None:
         """Invalidate the camera capabilities cache."""
         self._cache.pop("camera_capabilities", None)
@@ -743,14 +748,12 @@ class Camera(Entity, cached_properties=CACHED_PROPERTIES_WITH_ATTR_):
         """Return the camera capabilities."""
         frontend_stream_types = set()
         if CameraEntityFeature.STREAM in self.supported_features:
-            if self._supports_native_async_webrtc:
-                # The camera has a native WebRTC implementation
+            if self._supports_native_async_webrtc or self._webrtc_provider:
+                # Native WebRTC, or a provider such as go2rtc. Offer only
+                # WebRTC so the more-info dialog opens that player.
                 frontend_stream_types.add(StreamType.WEB_RTC)
-            else:
+            elif self._frontend_stream_hls():
                 frontend_stream_types.add(StreamType.HLS)
-
-                if self._webrtc_provider:
-                    frontend_stream_types.add(StreamType.WEB_RTC)
 
         return CameraCapabilities(frontend_stream_types)
 
