@@ -10,7 +10,7 @@ from typing import override
 from aiohttp import ClientSession, UnixConnector, encode_basic_auth
 from awesomeversion import AwesomeVersion
 from go2rtc_client import Go2RtcRestClient
-from go2rtc_client.exceptions import Go2RtcClientError, Go2RtcVersionError
+from go2rtc_client.exceptions import Go2RtcVersionError
 from go2rtc_client.ws import (
     Go2RtcWsClient,
     ReceiveMessages,
@@ -228,12 +228,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: Go2RtcConfigEntry) -> bo
                     "current_version": str(version),
                 },
             )
-    except Go2RtcClientError as err:
-        # A refused connection retries. A half-started server (empty client error)
-        # used to abort setup for the whole run, so ha-web-rtc-player never got a provider.
-        raise ConfigEntryNotReady(
-            f"Could not connect to go2rtc instance on {url}"
-        ) from err
     except Go2RtcVersionError as err:
         ir.async_create_issue(
             hass,
@@ -249,8 +243,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: Go2RtcConfigEntry) -> bo
             f"The go2rtc server version is not supported, {err}"
         ) from err
     except Exception as err:  # noqa: BLE001
-        _LOGGER.warning("Could not connect to go2rtc instance on %s (%s)", url, err)
-        return False
+        # go2rtc is often started by another integration and is not listening yet.
+        # Giving up here leaves ha-web-rtc-player without a provider for the whole run.
+        raise ConfigEntryNotReady(
+            f"Could not connect to go2rtc instance on {url}"
+        ) from err
 
     ir.async_delete_issue(hass, DOMAIN, "unsupported_version")
 

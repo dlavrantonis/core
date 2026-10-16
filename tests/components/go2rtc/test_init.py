@@ -667,7 +667,6 @@ async def test_camera_removed_while_a_snapshot_fails(
 
 
 ERR_BINARY_NOT_FOUND = "Could not find go2rtc docker binary"
-ERR_CONNECT = "Could not connect to go2rtc instance"
 ERR_CONNECT_RETRY = (
     "Could not connect to go2rtc instance on http://localhost:1984/; Retrying"
 )
@@ -816,7 +815,7 @@ async def test_setup_with_setup_error(
 @pytest.mark.parametrize(
     ("config", "go2rtc_binary", "is_docker_env", "expected_log_message"),
     [
-        ({DOMAIN: {CONF_URL: "http://localhost:1984/"}}, None, True, ERR_CONNECT),
+        ({DOMAIN: {CONF_URL: "http://localhost:1984/"}}, None, True, ERR_CONNECT_RETRY),
     ],
 )
 @pytest.mark.parametrize("has_go2rtc_entry", [True, False])
@@ -835,7 +834,7 @@ async def test_setup_with_setup_entry_error(
     await hass.async_block_till_done(wait_background_tasks=True)
     config_entries = hass.config_entries.async_entries(DOMAIN)
     assert len(config_entries) == 1
-    assert config_entries[0].state is ConfigEntryState.SETUP_ERROR
+    assert config_entries[0].state is ConfigEntryState.SETUP_RETRY
     assert expected_log_message in caplog.text
 
 
@@ -845,8 +844,8 @@ async def test_setup_with_setup_entry_error(
     [
         (ClientConnectionError(), ConfigEntryState.SETUP_RETRY, ERR_CONNECT_RETRY),
         (ServerConnectionError(), ConfigEntryState.SETUP_RETRY, ERR_CONNECT_RETRY),
-        (None, ConfigEntryState.SETUP_ERROR, ERR_CONNECT),
-        (Exception(), ConfigEntryState.SETUP_ERROR, ERR_CONNECT),
+        (None, ConfigEntryState.SETUP_RETRY, ERR_CONNECT_RETRY),
+        (Exception(), ConfigEntryState.SETUP_RETRY, ERR_CONNECT_RETRY),
     ],
 )
 @pytest.mark.parametrize("has_go2rtc_entry", [True, False])
