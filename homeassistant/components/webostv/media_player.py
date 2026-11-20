@@ -123,11 +123,14 @@ class LgWebOSMediaPlayerEntity(WebOsTvEntity, RestoreEntity, MediaPlayerEntity):
             if tv_state.sound_output == "external_speaker":
                 supported = supported | SUPPORT_WEBOSTV_VOLUME
             elif tv_state.sound_output != "lineout":
-                supported = (
-                    supported
-                    | SUPPORT_WEBOSTV_VOLUME
-                    | MediaPlayerEntityFeature.VOLUME_SET
-                )
+                supported = supported | SUPPORT_WEBOSTV_VOLUME
+                volume_status = tv_state.volume_status
+                # webOS 22+ reports volumeSyncable, webOS 4.x supportvolume,
+                # webOS 5/6 neither, so keep volume set when unknown
+                if volume_status.get(
+                    "volumeSyncable", volume_status.get("supportvolume", True)
+                ):
+                    supported = supported | MediaPlayerEntityFeature.VOLUME_SET
 
             self._supported_features = supported
 
@@ -179,18 +182,6 @@ class LgWebOSMediaPlayerEntity(WebOsTvEntity, RestoreEntity, MediaPlayerEntity):
                     self._attr_state = MediaPlayerState.PAUSED
                 elif entry.get("playState") == "unloaded":
                     self._attr_state = MediaPlayerState.IDLE
-
-        tv_info = self._client.tv_info
-        maj_v = tv_info.software.get("major_ver")
-        min_v = tv_info.software.get("minor_ver")
-        if maj_v and min_v:
-            self._attr_device_info["sw_version"] = f"{maj_v}.{min_v}"
-
-        if model := tv_info.system.get("modelName"):
-            self._attr_device_info["model"] = model
-
-        if serial_number := tv_info.system.get("serialNumber"):
-            self._attr_device_info["serial_number"] = serial_number
 
         if tv_state.sound_output is not None:
             self._attr_extra_state_attributes = {

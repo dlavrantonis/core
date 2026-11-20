@@ -72,7 +72,7 @@ BASE_SCHEMA = probatio.Schema(
 
 PASSWORD_SCHEMA = probatio.Schema(
     {
-        probatio.Required(CONF_PASSWORD): TextSelector(
+        probatio.Required(probatio.Secret(CONF_PASSWORD)): TextSelector(
             TextSelectorConfig(
                 type=TextSelectorType.PASSWORD,
                 autocomplete="current-password",
@@ -83,7 +83,7 @@ PASSWORD_SCHEMA = probatio.Schema(
 TOKEN_SCHEMA = probatio.Schema(
     {
         probatio.Required(CONF_TOKEN_ID): cv.string,
-        probatio.Required(CONF_TOKEN_SECRET): cv.string,
+        probatio.Required(probatio.Secret(CONF_TOKEN_SECRET)): cv.string,
     }
 )
 
@@ -151,6 +151,12 @@ def _get_nodes_data(data: dict[str, Any]) -> list[dict[str, Any]]:
             vms = client.nodes(node["node"]).qemu.get()
             containers = client.nodes(node["node"]).lxc.get()
         except ResourceException as err:
+            if err.status_code in {595, 596}:
+                _LOGGER.warning(
+                    "Unable to fetch VMs/LXC for node %s, skipping node",
+                    node["node"],
+                )
+                continue
             _LOGGER.debug(
                 "Error fetching VMs/LXC for node %s", node["node"], exc_info=True
             )
